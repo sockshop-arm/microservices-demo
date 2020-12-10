@@ -25,7 +25,7 @@ spec:
         name: payment
     spec:
       containers:
-      - image: codelab/payment
+      - image: uspcodelabime/payment
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3

@@ -31,7 +31,7 @@ spec:
         - name: JAVA_OPTS
           value: -Xms64m -Xmx128m -XX:PermSize=32m -XX:MaxPermSize=64m -XX:+UseG1GC
             -Djava.security.egd=file:/dev/urandom
-        image: codelab/orders
+        image: uspcodelabime/orders
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3

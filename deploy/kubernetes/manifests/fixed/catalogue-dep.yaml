@@ -29,7 +29,7 @@ spec:
         - -port=80
         command:
         - /app
-        image: codelab/catalogue
+        image: uspcodelabime/catalogue
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3

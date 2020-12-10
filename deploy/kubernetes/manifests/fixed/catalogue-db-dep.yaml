@@ -30,7 +30,7 @@ spec:
           value: fake_password
         - name: MYSQL_DATABASE
           value: socksdb
-        image: codelab/catalogue-db
+        image: uspcodelabime/catalogue-db
         imagePullPolicy: Always
         name: catalogue-db
         ports:

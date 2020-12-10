@@ -28,7 +28,7 @@ spec:
       - env:
         - name: SESSION_REDIS
           value: "true"
-        image: codelab/front-end
+        image: uspcodelabime/front-end
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3
