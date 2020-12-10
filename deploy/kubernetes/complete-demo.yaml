@@ -1,652 +1,1378 @@
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: carts-db
-  labels:
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: carts-db
     name: carts-db
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
         name: carts-db
-    spec:
-      containers:
-      - name: carts-db
-        image: mongo
-        ports:
-        - name: mongo
-          containerPort: 27017
-        securityContext:
-          capabilities:
-            drop:
-              - all
-            add:
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: carts-db
+      spec:
+        containers:
+        - image: mangoraft/mongodb-arm
+          imagePullPolicy: Always
+          name: carts-db
+          ports:
+          - containerPort: 27017
+            name: mongo
+            protocol: TCP
+          resources: {}
+          securityContext:
+            capabilities:
+              add:
               - CHOWN
               - SETGID
               - SETUID
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp-volume
-      volumes:
-        - name: tmp-volume
-          emptyDir:
-            medium: Memory
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: carts-db
-  labels:
-    name: carts-db
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 27017
-    targetPort: 27017
-  selector:
-    name: carts-db
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: carts
-  labels:
-    name: carts
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: carts
-    spec:
-      containers:
-      - name: carts
-        image: weaveworksdemos/carts:0.4.8
-        ports:
-         - containerPort: 80
-        env:
-         - name: ZIPKIN
-           value: zipkin.jaeger.svc.cluster.local
-         - name: JAVA_OPTS
-           value: -Xms64m -Xmx128m -XX:PermSize=32m -XX:MaxPermSize=64m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          capabilities:
-            drop:
+              drop:
               - all
-            add:
-              - NET_BIND_SERVICE
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp-volume
-      volumes:
-        - name: tmp-volume
-          emptyDir:
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-volume
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir:
             medium: Memory
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: carts
-  labels:
+          name: tmp-volume
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: carts-db
+    name: carts-db
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 27017
+      protocol: TCP
+      targetPort: 27017
+    selector:
+      name: carts-db
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: carts
     name: carts
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 80
-    targetPort: 80
-  selector:
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
+        name: carts
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: carts
+      spec:
+        containers:
+        - env:
+          - name: ZIPKIN
+            value: zipkin.jaeger.svc.cluster.local
+          - name: JAVA_OPTS
+            value: -Xms64m -Xmx128m -XX:PermSize=32m -XX:MaxPermSize=64m -XX:+UseG1GC
+              -Djava.security.egd=file:/dev/urandom
+          image: codelab/carts
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: carts
+          ports:
+          - containerPort: 80
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 180
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 300m
+              memory: 500Mi
+            requests:
+              cpu: 300m
+              memory: 500Mi
+          securityContext:
+            capabilities:
+              add:
+              - NET_BIND_SERVICE
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-volume
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir:
+            medium: Memory
+          name: tmp-volume
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: carts
     name: carts
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: catalogue-db
-  labels:
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+    selector:
+      name: carts
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: catalogue-db
     name: catalogue-db
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
         name: catalogue-db
-    spec:
-      containers:
-      - name: catalogue-db
-        image: weaveworksdemos/catalogue-db:0.3.0
-        env:
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: catalogue-db
+      spec:
+        containers:
+        - env:
           - name: MYSQL_ROOT_PASSWORD
             value: fake_password
           - name: MYSQL_DATABASE
             value: socksdb
-        ports:
-        - name: mysql
-          containerPort: 3306
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: catalogue-db
-  labels:
+          image: codelab/catalogue-db
+          imagePullPolicy: Always
+          name: catalogue-db
+          ports:
+          - containerPort: 3306
+            name: mysql
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: catalogue-db
     name: catalogue-db
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 3306
-    targetPort: 3306
-  selector:
-    name: catalogue-db
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: catalogue
-  labels:
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 3306
+      protocol: TCP
+      targetPort: 3306
+    selector:
+      name: catalogue-db
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: catalogue
     name: catalogue
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
         name: catalogue
-    spec:
-      containers:
-      - name: catalogue
-        image: weaveworksdemos/catalogue:0.3.5
-        ports:
-        - containerPort: 80
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          capabilities:
-            drop:
-              - all
-            add:
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: catalogue
+      spec:
+        containers:
+        - args:
+          - -port=80
+          command:
+          - /app
+          image: codelab/catalogue
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: catalogue
+          ports:
+          - containerPort: 80
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 180
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          securityContext:
+            capabilities:
+              add:
               - NET_BIND_SERVICE
-          readOnlyRootFilesystem: true
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: catalogue
-  labels:
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: catalogue
     name: catalogue
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 80
-    targetPort: 80
-  selector:
-    name: catalogue
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: front-end
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+    selector:
+      name: catalogue
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: front-end
+    name: front-end
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
         name: front-end
-    spec:
-      containers:
-      - name: front-end
-        image: weaveworksdemos/front-end:0.3.12
-        resources:
-          requests:
-            cpu: 100m
-            memory: 100Mi
-        ports:
-        - containerPort: 8079
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          capabilities:
-            drop:
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: front-end
+      spec:
+        containers:
+        - env:
+          - name: SESSION_REDIS
+            value: "true"
+          image: codelab/front-end
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 8079
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: front-end
+          ports:
+          - containerPort: 8079
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 8079
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 300m
+              memory: 1000Mi
+            requests:
+              cpu: 100m
+              memory: 300Mi
+          securityContext:
+            capabilities:
+              drop:
               - all
-          readOnlyRootFilesystem: true
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: front-end
-  labels:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: front-end
     name: front-end
-  namespace: sock-shop
-spec:
-  type: NodePort
-  ports:
-  - port: 80
-    targetPort: 8079
-    nodePort: 30001
-  selector:
-    name: front-end
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: orders-db
-  labels:
+    namespace: sock-shop
+  spec:
+    externalTrafficPolicy: Cluster
+    ports:
+    - nodePort: 30001
+      port: 80
+      protocol: TCP
+      targetPort: 8079
+    selector:
+      name: front-end
+    sessionAffinity: None
+    type: LoadBalancer
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    creationTimestamp: null
+    name: loadtest
+  spec: {}
+  status:
+    phase: Active
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: load-test
+    name: load-test
+    namespace: loadtest
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 2
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
+        name: load-test
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: load-test
+      spec:
+        containers:
+        - args:
+          - -c
+          - while true; do locust --host http://front-end.sock-shop.svc.cluster.local
+            -f /config/locustfile.py --clients 5 --hatch-rate 5 --num-request 100
+            --no-web; done
+          command:
+          - /bin/sh
+          image: weaveworksdemos/load-test:0.1.1
+          imagePullPolicy: IfNotPresent
+          name: load-test
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: orders-db
     name: orders-db
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
         name: orders-db
-    spec:
-      containers:
-      - name: orders-db
-        image: mongo
-        ports:
-        - name: mongo
-          containerPort: 27017
-        securityContext:
-          capabilities:
-            drop:
-              - all
-            add:
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: orders-db
+      spec:
+        containers:
+        - image: mangoraft/mongodb-arm
+          imagePullPolicy: Always
+          name: orders-db
+          ports:
+          - containerPort: 27017
+            name: mongo
+            protocol: TCP
+          resources: {}
+          securityContext:
+            capabilities:
+              add:
               - CHOWN
               - SETGID
               - SETUID
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp-volume
-      volumes:
-        - name: tmp-volume
-          emptyDir:
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-volume
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir:
             medium: Memory
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: orders-db
-  labels:
+          name: tmp-volume
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: orders-db
     name: orders-db
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 27017
-    targetPort: 27017
-  selector:
-    name: orders-db
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: orders
-  labels:
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 27017
+      protocol: TCP
+      targetPort: 27017
+    selector:
+      name: orders-db
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: orders
     name: orders
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
         name: orders
-    spec:
-      containers:
-      - name: orders
-        image: weaveworksdemos/orders:0.4.7
-        env:
-         - name: ZIPKIN
-           value: zipkin.jaeger.svc.cluster.local
-         - name: JAVA_OPTS
-           value: -Xms64m -Xmx128m -XX:PermSize=32m -XX:MaxPermSize=64m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom
-        ports:
-        - containerPort: 80
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          capabilities:
-            drop:
-              - all
-            add:
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: orders
+      spec:
+        containers:
+        - env:
+          - name: ZIPKIN
+            value: zipkin.jaeger.svc.cluster.local
+          - name: JAVA_OPTS
+            value: -Xms64m -Xmx128m -XX:PermSize=32m -XX:MaxPermSize=64m -XX:+UseG1GC
+              -Djava.security.egd=file:/dev/urandom
+          image: codelab/orders
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: orders
+          ports:
+          - containerPort: 80
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 180
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 500m
+              memory: 500Mi
+            requests:
+              cpu: 200m
+              memory: 500Mi
+          securityContext:
+            capabilities:
+              add:
               - NET_BIND_SERVICE
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp-volume
-      volumes:
-        - name: tmp-volume
-          emptyDir:
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-volume
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir:
             medium: Memory
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: orders
-  labels:
+          name: tmp-volume
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: orders
     name: orders
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 80
-    targetPort: 80
-  selector:
-    name: orders
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: payment
-  labels:
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+    selector:
+      name: orders
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: payment
     name: payment
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
         name: payment
-    spec:
-      containers:
-      - name: payment
-        image: weaveworksdemos/payment:0.4.3
-        ports:
-        - containerPort: 80
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          capabilities:
-            drop:
-              - all
-            add:
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: payment
+      spec:
+        containers:
+        - image: codelab/payment
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: payment
+          ports:
+          - containerPort: 80
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 180
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 99m
+              memory: 100Mi
+          securityContext:
+            capabilities:
+              add:
               - NET_BIND_SERVICE
-          readOnlyRootFilesystem: true
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: payment
-  labels:
-    name: payment
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 80
-    targetPort: 80
-  selector:
-    name: payment
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: queue-master
-  labels:
-    name: queue-master
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: queue-master
-    spec:
-      containers:
-      - name: queue-master
-        image: weaveworksdemos/queue-master:0.3.1
-        ports:
-        - containerPort: 80
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: queue-master
-  labels:
-    name: queue-master
-  annotations:
-    prometheus.io/path: "/prometheus"
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 80
-    targetPort: 80
-  selector:
-    name: queue-master
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: rabbitmq
-  labels:
-    name: rabbitmq
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: rabbitmq
-    spec:
-      containers:
-      - name: rabbitmq
-        image: rabbitmq:3.6.8
-        ports:
-        - containerPort: 5672
-        securityContext:
-          capabilities:
-            drop:
+              drop:
               - all
-            add:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: payment
+    name: payment
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+    selector:
+      name: payment
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: queue-master
+    name: queue-master
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
+        name: queue-master
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: queue-master
+      spec:
+        containers:
+        - env:
+          - name: ZIPKIN
+            value: zipkin.jaeger.svc.cluster.local
+          - name: JAVA_OPTS
+            value: -Xms64m -Xmx128m -XX:PermSize=32m -XX:MaxPermSize=64m -XX:+UseG1GC
+              -Djava.security.egd=file:/dev/urandom
+          image: codelab/queue-master
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: queue-master
+          ports:
+          - containerPort: 80
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 180
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 300m
+              memory: 500Mi
+            requests:
+              cpu: 300m
+              memory: 500Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      prometheus.io/path: /prometheus
+    creationTimestamp: null
+    labels:
+      name: queue-master
+    name: queue-master
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+    selector:
+      name: queue-master
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: rabbitmq
+    name: rabbitmq
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
+        name: rabbitmq
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          prometheus.io/scrape: "false"
+        creationTimestamp: null
+        labels:
+          name: rabbitmq
+      spec:
+        containers:
+        - image: rabbitmq:3.8.9-management
+          imagePullPolicy: IfNotPresent
+          name: rabbitmq
+          ports:
+          - containerPort: 15672
+            name: management
+            protocol: TCP
+          - containerPort: 5672
+            name: rabbitmq
+            protocol: TCP
+          resources: {}
+          securityContext:
+            capabilities:
+              add:
               - CHOWN
               - SETGID
               - SETUID
               - DAC_OVERRIDE
-          readOnlyRootFilesystem: true
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: rabbitmq
-  labels:
-    name: rabbitmq
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 5672
-    targetPort: 5672
-  selector:
-    name: rabbitmq
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: shipping
-  labels:
-    name: shipping
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: shipping
-    spec:
-      containers:
-      - name: shipping
-        image: weaveworksdemos/shipping:0.4.8
-        env:
-         - name: ZIPKIN
-           value: zipkin.jaeger.svc.cluster.local
-         - name: JAVA_OPTS
-           value: -Xms64m -Xmx128m -XX:PermSize=32m -XX:MaxPermSize=64m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom
-        ports:
-        - containerPort: 80
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          capabilities:
-            drop:
+              drop:
               - all
-            add:
-              - NET_BIND_SERVICE
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp-volume
-      volumes:
-        - name: tmp-volume
-          emptyDir:
-            medium: Memory
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: shipping
-  labels:
-    name: shipping
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 80
-    targetPort: 80
-  selector:
-    name: shipping
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: user-db
-  labels:
-    name: user-db
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: user-db
-    spec:
-      containers:
-      - name: user-db
-        image: weaveworksdemos/user-db:0.4.0
-        ports:
-        - name: mongo
-          containerPort: 27017
-        securityContext:
-          capabilities:
-            drop:
-              - all
-            add:
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        - image: kbudde/rabbitmq-exporter
+          imagePullPolicy: Always
+          name: rabbitmq-exporter
+          ports:
+          - containerPort: 9090
+            name: exporter
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: rabbitmq
+    name: rabbitmq
+    namespace: sock-shop
+  spec:
+    ports:
+    - name: rabbitmq
+      port: 5672
+      protocol: TCP
+      targetPort: 5672
+    - name: exporter
+      port: 9090
+      protocol: TCP
+      targetPort: exporter
+    selector:
+      name: rabbitmq
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: session-db
+    name: session-db
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
+        name: session-db
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          prometheus.io.scrape: "false"
+        creationTimestamp: null
+        labels:
+          name: session-db
+      spec:
+        containers:
+        - image: redis:alpine
+          imagePullPolicy: IfNotPresent
+          name: session-db
+          ports:
+          - containerPort: 6379
+            name: redis
+            protocol: TCP
+          resources: {}
+          securityContext:
+            capabilities:
+              add:
               - CHOWN
               - SETGID
               - SETUID
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp-volume
-      volumes:
-        - name: tmp-volume
-          emptyDir:
-            medium: Memory
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: user-db
-  labels:
-    name: user-db
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 27017
-    targetPort: 27017
-  selector:
-    name: user-db
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: user
-  labels:
-    name: user
-  namespace: sock-shop
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: user
-    spec:
-      containers:
-      - name: user
-        image: weaveworksdemos/user:0.4.7
-        ports:
-        - containerPort: 80
-        env:
-        - name: MONGO_HOST
-          value: user-db:27017
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          capabilities:
-            drop:
+              drop:
               - all
-            add:
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: session-db
+    name: session-db
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 6379
+      protocol: TCP
+      targetPort: 6379
+    selector:
+      name: session-db
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: shipping
+    name: shipping
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
+        name: shipping
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: shipping
+      spec:
+        containers:
+        - env:
+          - name: ZIPKIN
+            value: zipkin.jaeger.svc.cluster.local
+          - name: JAVA_OPTS
+            value: -Xms64m -Xmx128m -XX:PermSize=32m -XX:MaxPermSize=64m -XX:+UseG1GC
+              -Djava.security.egd=file:/dev/urandom
+          image: codelab/shipping
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: shipping
+          ports:
+          - containerPort: 80
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 180
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 300m
+              memory: 500Mi
+            requests:
+              cpu: 300m
+              memory: 500Mi
+          securityContext:
+            capabilities:
+              add:
               - NET_BIND_SERVICE
-          readOnlyRootFilesystem: true
-      nodeSelector:
-        beta.kubernetes.io/os: linux
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: user
-  labels:
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-volume
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir:
+            medium: Memory
+          name: tmp-volume
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: shipping
+    name: shipping
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+    selector:
+      name: shipping
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    creationTimestamp: null
+    name: sock-shop
+  spec: {}
+  status:
+    phase: Active
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: user-db
+    name: user-db
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
+        name: user-db
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: user-db
+      spec:
+        containers:
+        - image: codelab/user-db
+          imagePullPolicy: Always
+          name: user-db
+          ports:
+          - containerPort: 27017
+            name: mongo
+            protocol: TCP
+          resources: {}
+          securityContext:
+            capabilities:
+              add:
+              - CHOWN
+              - SETGID
+              - SETUID
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-volume
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir:
+            medium: Memory
+          name: tmp-volume
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: user-db
+    name: user-db
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 27017
+      protocol: TCP
+      targetPort: 27017
+    selector:
+      name: user-db
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: user
     name: user
-  namespace: sock-shop
-spec:
-  ports:
-    # the port that this service should serve on
-  - port: 80
-    targetPort: 80
-  selector:
+    namespace: sock-shop
+  spec:
+    progressDeadlineSeconds: 2147483647
+    replicas: 1
+    revisionHistoryLimit: 2147483647
+    selector:
+      matchLabels:
+        name: user
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: user
+      spec:
+        containers:
+        - env:
+          - name: mongo
+            value: user-db:27017
+          image: codelab/user
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: user
+          ports:
+          - containerPort: 80
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 180
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 300m
+              memory: 100Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          securityContext:
+            capabilities:
+              add:
+              - NET_BIND_SERVICE
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          beta.kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: user
     name: user
+    namespace: sock-shop
+  spec:
+    ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+    selector:
+      name: user
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+kind: List
+metadata: {}
