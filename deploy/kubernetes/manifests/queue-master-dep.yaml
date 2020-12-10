@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: queue-master
-        image: weaveworksdemos/queue-master:0.3.1
+        image: codelab/queue-master
         env:
          - name: ZIPKIN
            value: zipkin.jaeger.svc.cluster.local
