@@ -489,7 +489,7 @@ spec:
     spec:
       containers:
       - name: rabbitmq
-        image: rabbitmq:3.6.8
+        image: rabbitmq:3.8
         ports:
         - containerPort: 5672
         securityContext:
@@ -501,7 +501,7 @@ spec:
               - SETGID
               - SETUID
               - DAC_OVERRIDE
-          readOnlyRootFilesystem: true
+          readOnlyRootFilesystem: false
       nodeSelector:
         beta.kubernetes.io/os: linux
 ---
