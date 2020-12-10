@@ -17,9 +17,9 @@ spec:
     spec:
       containers:
       - name: carts-db
-        image: mongo
+        image: mangoraft/mongodb-arm
         ports:
-        - name: mongo
+        - name: mangoraft/mongodb-arm
           containerPort: 27017
         securityContext:
           capabilities:
@@ -280,9 +280,9 @@ spec:
     spec:
       containers:
       - name: orders-db
-        image: mongo
+        image: mangoraft/mongodb-arm
         ports:
-        - name: mongo
+        - name: mangoraft/mongodb-arm
           containerPort: 27017
         securityContext:
           capabilities:
@@ -602,7 +602,7 @@ spec:
       - name: user-db
         image: uspcodelabime/user-db
         ports:
-        - name: mongo
+        - name: mangoraft/mongodb-arm
           containerPort: 27017
         securityContext:
           capabilities:
